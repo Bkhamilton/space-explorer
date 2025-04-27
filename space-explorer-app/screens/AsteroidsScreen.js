@@ -8,7 +8,9 @@ const AsteroidsScreen = () => {
 
     useEffect(() => {
         const fetchAsteroids = async () => {
+            console.log('Fetching asteroids...'); // Debugging log
             const response = await getAsteroids();
+            console.log(JSON.stringify(response.data, null, 2)); // Log the full response for debugging
             setAsteroids(response.data.near_earth_objects);
         };
         fetchAsteroids();
