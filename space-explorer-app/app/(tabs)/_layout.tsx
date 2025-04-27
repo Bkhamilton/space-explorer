@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 
 import { HapticTab } from '@/components/HapticTab';
 import { IconSymbol } from '@/components/ui/IconSymbol';
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -37,7 +38,7 @@ export default function TabLayout() {
         name="launches"
         options={{
           title: 'Launches',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="rocket.fill" color={color} />,
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons size={28} name="rocket-launch" color={color} />,
         }}
       />
       <Tabs.Screen
@@ -51,7 +52,7 @@ export default function TabLayout() {
         name="asteroids"
         options={{
           title: 'Asteroids',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="asteroid" color={color} />,
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons size={28} name="meteor" color={color} />,
         }}
       />
     </Tabs>
