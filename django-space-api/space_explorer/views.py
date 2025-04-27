@@ -17,9 +17,41 @@ def apod(request):
     return JsonResponse(response)
 
 def launches(request):
-    url = 'https://llapi.launchlibrary.net/1.4/launch'
-    response = requests.get(url)
-    return JsonResponse(response.json())
+    try:
+        # Use the development API endpoint for upcoming launches
+        base_url = "https://lldev.thespacedevs.com/2.3.0/launches/upcoming/"
+        
+        # Add filters for the API request
+        params = {
+            'mode': 'detailed',  # Get detailed response
+            'limit': 20,         # Limit to 20 results
+            'ordering': 'net',   # Sort by launch date
+            'hide_recent_previous': 'true'  # Hide already launched
+        }
+        
+        response = requests.get(base_url, params=params)
+        response.raise_for_status()  # Raise exception for HTTP errors
+        
+        # Extract and format the data
+        launches = []
+        for launch in response.json().get('results', []):
+            launches.append({
+                'name': launch.get('name', 'Unnamed Launch'),
+                'net': launch.get('net', 'No date available'),
+                'status': launch.get('status', {}).get('name', 'Status unknown'),
+                'mission': launch.get('mission', {}).get('name', 'No mission'),
+                'rocket': launch.get('rocket', {}).get('configuration', {}).get('name', 'Unknown rocket'),
+                'pad': launch.get('pad', {}).get('name', 'Unknown pad'),
+                'agency': launch.get('launch_service_provider', {}).get('name', 'Unknown agency')
+            })
+        
+        return JsonResponse({'results': launches})
+    
+    except requests.exceptions.RequestException as e:
+        return JsonResponse(
+            {'error': f'Failed to fetch launches: {str(e)}'},
+            status=500
+        )
 
 def mars_weather(request):
     url = f'https://api.nasa.gov/insight_weather/?api_key={settings.NASA_API_KEY}&feedtype=json&ver=1.0'
