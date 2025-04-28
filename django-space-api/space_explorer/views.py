@@ -4,7 +4,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 from datetime import timedelta
-from .models import APOD, Favorite, CachedAsteroid
+from .models import APOD, Favorite, CachedAsteroid, CachedMarsWeather, CachedLaunch
 from django.contrib.auth.decorators import login_required
 
 def apod(request):
@@ -20,46 +20,96 @@ def apod(request):
     return JsonResponse(response)
 
 def launches(request):
-    try:
-        # Use the development API endpoint for upcoming launches
-        base_url = "https://lldev.thespacedevs.com/2.3.0/launches/upcoming/"
-        
-        # Add filters for the API request
-        params = {
-            'mode': 'detailed',  # Get detailed response
-            'limit': 20,         # Limit to 20 results
-            'ordering': 'net',   # Sort by launch date
-            'hide_recent_previous': 'true'  # Hide already launched
-        }
-        
-        response = requests.get(base_url, params=params)
-        response.raise_for_status()  # Raise exception for HTTP errors
-        
-        # Extract and format the data
-        launches = []
-        for launch in response.json().get('results', []):
-            launches.append({
-                'name': launch.get('name', 'Unnamed Launch'),
-                'net': launch.get('net', 'No date available'),
-                'status': launch.get('status', {}).get('name', 'Status unknown'),
-                'mission': launch.get('mission', {}).get('name', 'No mission'),
-                'rocket': launch.get('rocket', {}).get('configuration', {}).get('name', 'Unknown rocket'),
-                'pad': launch.get('pad', {}).get('name', 'Unknown pad'),
-                'agency': launch.get('launch_service_provider', {}).get('name', 'Unknown agency')
-            })
-        
-        return JsonResponse({'results': launches})
-    
-    except requests.exceptions.RequestException as e:
-        return JsonResponse(
-            {'error': f'Failed to fetch launches: {str(e)}'},
-            status=500
-        )
+    # Try to get cached data
+    cached_data = cache.get('launches_data')
+
+    if not cached_data:
+        # Check if DB has fresh data (<24 hours old)
+        recent_launches = CachedLaunch.objects.filter(
+            last_updated__gte=timezone.now() - timedelta(hours=24)
+        ).values()
+
+        if recent_launches.exists():
+            cached_data = list(recent_launches)
+            cache.set('launches_data', cached_data, 86400)  # Cache for 24 hours
+        else:
+            # Fetch fresh data from SpaceDevs API
+            base_url = "https://lldev.thespacedevs.com/2.3.0/launches/upcoming/"
+            params = {
+                'mode': 'detailed',
+                'limit': 20,
+                'ordering': 'net',
+                'hide_recent_previous': 'true'
+            }
+            response = requests.get(base_url, params=params).json()
+
+            # Save to database
+            cached_data = []
+            for launch in response.get('results', []):
+                obj, _ = CachedLaunch.objects.update_or_create(
+                    name=launch.get('name', 'Unnamed Launch'),
+                    net=launch.get('net', None),
+                    defaults={
+                        'status': launch.get('status', {}).get('name', 'Status unknown'),
+                        'mission': launch.get('mission', {}).get('name', 'No mission'),
+                        'rocket': launch.get('rocket', {}).get('configuration', {}).get('name', 'Unknown rocket'),
+                        'pad': launch.get('pad', {}).get('name', 'Unknown pad'),
+                        'agency': launch.get('launch_service_provider', {}).get('name', 'Unknown agency'),
+                    }
+                )
+                cached_data.append({
+                    'name': obj.name,
+                    'net': obj.net,
+                    'status': obj.status,
+                    'mission': obj.mission,
+                    'rocket': obj.rocket,
+                    'pad': obj.pad,
+                    'agency': obj.agency,
+                })
+
+            cache.set('launches_data', cached_data, 86400)  # Cache for 24 hours
+
+    return JsonResponse({'results': cached_data})
 
 def mars_weather(request):
-    url = f'https://api.nasa.gov/insight_weather/?api_key={settings.NASA_API_KEY}&feedtype=json&ver=1.0'
-    response = requests.get(url)
-    return JsonResponse(response.json())
+    # Try to get cached data
+    cached_data = cache.get('mars_weather_data')
+
+    if not cached_data:
+        # Check if DB has fresh data (<24 hours old)
+        recent_weather = CachedMarsWeather.objects.filter(
+            last_updated__gte=timezone.now() - timedelta(hours=24)
+        ).values()
+
+        if recent_weather.exists():
+            cached_data = list(recent_weather)
+            cache.set('mars_weather_data', cached_data, 86400)  # Cache for 24 hours
+        else:
+            # Fetch fresh data from NASA API
+            url = f'https://api.nasa.gov/insight_weather/?api_key={settings.NASA_API_KEY}&feedtype=json&ver=1.0'
+            response = requests.get(url).json()
+
+            # Save to database
+            cached_data = []
+            for sol, data in response.get('sol_keys', {}).items():
+                obj, _ = CachedMarsWeather.objects.update_or_create(
+                    sol=sol,
+                    defaults={
+                        'temperature': data.get('AT', {}).get('av', None),
+                        'wind_speed': data.get('HWS', {}).get('av', None),
+                        'pressure': data.get('PRE', {}).get('av', None),
+                    }
+                )
+                cached_data.append({
+                    'sol': obj.sol,
+                    'temperature': obj.temperature,
+                    'wind_speed': obj.wind_speed,
+                    'pressure': obj.pressure,
+                })
+
+            cache.set('mars_weather_data', cached_data, 86400)  # Cache for 24 hours
+
+    return JsonResponse(cached_data, safe=False)
 
 def asteroids(request):
     # Try to get cached data

@@ -27,3 +27,26 @@ class CachedAsteroid(models.Model):
 
     def __str__(self):
         return self.name
+    
+class CachedMarsWeather(models.Model):
+    sol = models.IntegerField(unique=True)  # Unique identifier for each Martian day
+    temperature = models.FloatField()
+    wind_speed = models.FloatField()
+    pressure = models.FloatField()
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Mars Weather Sol {self.sol}"
+
+class CachedLaunch(models.Model):
+    name = models.CharField(max_length=200)
+    net = models.DateTimeField()
+    status = models.CharField(max_length=100)
+    mission = models.CharField(max_length=200, null=True, blank=True)
+    rocket = models.CharField(max_length=200)
+    pad = models.CharField(max_length=200)
+    agency = models.CharField(max_length=200)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
