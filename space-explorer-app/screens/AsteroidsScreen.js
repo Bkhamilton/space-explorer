@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, StyleSheet } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { getAsteroids } from '../services/api';
 import Card from '../components/Card';
@@ -11,9 +11,12 @@ const AsteroidsScreen = () => {
         const fetchAsteroids = async () => {
             try {
                 const response = await getAsteroids();
-                const nearEarthObjects = response.data.near_earth_objects;
-                const flattenedAsteroids = Object.values(nearEarthObjects).flat();
-                setAsteroids(flattenedAsteroids);
+                // Extract the `data` field from the response
+                if (response && response.data) {
+                    setAsteroids(response.data); // Set the extracted data
+                } else {
+                    console.error('Invalid response format:', response);
+                }
             } catch (error) {
                 console.error('Error fetching asteroids:', error);
             }
@@ -24,28 +27,28 @@ const AsteroidsScreen = () => {
     const renderItem = ({ item }) => (
         <Card style={[
             styles.card,
-            item.is_potentially_hazardous_asteroid && styles.hazardousCard
+            item.is_potentially_hazardous && styles.hazardousCard
         ]}>
             <View style={styles.cardHeader}>
                 <Icon 
-                    name={item.is_potentially_hazardous_asteroid ? 'alert-octagon' : 'star'} 
+                    name={item.is_potentially_hazardous ? 'alert-octagon' : 'star'} 
                     size={24} 
-                    color={item.is_potentially_hazardous_asteroid ? '#ff4757' : '#f1c40f'} 
+                    color={item.is_potentially_hazardous ? '#ff4757' : '#f1c40f'} 
                 />
-                <Text style={styles.name}>{item.name.replace(/[()]/g, '')}</Text>
+                <Text style={styles.name}>{item.name}</Text>
             </View>
             
             <View style={styles.detailRow}>
                 <Icon name="ruler" size={16} color="#7f8c8d" />
                 <Text style={styles.detailText}>
-                    Diameter: <Text style={styles.highlight}>{item.estimated_diameter.meters.estimated_diameter_max.toFixed(2)} m</Text>
+                    Diameter: <Text style={styles.highlight}>{item.diameter_max_meters.toFixed(2)} m</Text>
                 </Text>
             </View>
 
             <View style={styles.detailRow}>
                 <Icon name="calendar" size={16} color="#7f8c8d" />
                 <Text style={styles.detailText}>
-                    Approach: <Text style={styles.highlight}>{item.close_approach_data[0]?.close_approach_date || 'N/A'}</Text>
+                    Approach: <Text style={styles.highlight}>{item.close_approach_date || 'N/A'}</Text>
                 </Text>
             </View>
 
@@ -53,8 +56,8 @@ const AsteroidsScreen = () => {
                 <Icon name="map-marker-distance" size={16} color="#7f8c8d" />
                 <Text style={styles.detailText}>
                     Miss Distance: <Text style={styles.highlight}>
-                        {item.close_approach_data[0]?.miss_distance.kilometers 
-                            ? `${parseFloat(item.close_approach_data[0].miss_distance.kilometers).toLocaleString()} km` 
+                        {item.miss_distance_km 
+                            ? `${item.miss_distance_km.toLocaleString()} km` 
                             : 'N/A'}
                     </Text>
                 </Text>
@@ -63,9 +66,9 @@ const AsteroidsScreen = () => {
             <View style={styles.hazardContainer}>
                 <Text style={[
                     styles.hazardText,
-                    item.is_potentially_hazardous_asteroid ? styles.hazardYes : styles.hazardNo
+                    item.is_potentially_hazardous ? styles.hazardYes : styles.hazardNo
                 ]}>
-                    {item.is_potentially_hazardous_asteroid ? '⚠️ POTENTIALLY HAZARDOUS' : 'Non-hazardous'}
+                    {item.is_potentially_hazardous ? '⚠️ POTENTIALLY HAZARDOUS' : 'Non-hazardous'}
                 </Text>
             </View>
         </Card>
@@ -77,7 +80,7 @@ const AsteroidsScreen = () => {
             <FlatList
                 data={asteroids}
                 renderItem={renderItem}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item) => item.neo_reference_id}
                 contentContainerStyle={styles.listContent}
             />
         </View>
