@@ -4,6 +4,56 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { getAsteroids } from '../services/api';
 import Card from '../components/Card';
 
+const MemoizedCard = React.memo(({ item }) => (
+    <Card style={[
+        styles.card,
+        item.is_potentially_hazardous && styles.hazardousCard
+    ]}>
+        <View style={styles.cardHeader}>
+            <Icon 
+                name={item.is_potentially_hazardous ? 'alert-octagon' : 'star'} 
+                size={24} 
+                color={item.is_potentially_hazardous ? '#ff4757' : '#f1c40f'} 
+            />
+            <Text style={styles.name}>{item.name}</Text>
+        </View>
+        
+        <View style={styles.detailRow}>
+            <Icon name="ruler" size={16} color="#7f8c8d" />
+            <Text style={styles.detailText}>
+                Diameter: <Text style={styles.highlight}>{item.diameter_max_meters.toFixed(2)} m</Text>
+            </Text>
+        </View>
+
+        <View style={styles.detailRow}>
+            <Icon name="calendar" size={16} color="#7f8c8d" />
+            <Text style={styles.detailText}>
+                Approach: <Text style={styles.highlight}>{item.close_approach_date || 'N/A'}</Text>
+            </Text>
+        </View>
+
+        <View style={styles.detailRow}>
+            <Icon name="map-marker-distance" size={16} color="#7f8c8d" />
+            <Text style={styles.detailText}>
+                Miss Distance: <Text style={styles.highlight}>
+                    {item.miss_distance_km 
+                        ? `${item.miss_distance_km.toLocaleString()} km` 
+                        : 'N/A'}
+                </Text>
+            </Text>
+        </View>
+
+        <View style={styles.hazardContainer}>
+            <Text style={[
+                styles.hazardText,
+                item.is_potentially_hazardous ? styles.hazardYes : styles.hazardNo
+            ]}>
+                {item.is_potentially_hazardous ? '⚠️ POTENTIALLY HAZARDOUS' : 'Non-hazardous'}
+            </Text>
+        </View>
+    </Card>
+));
+
 const AsteroidsScreen = () => {
     const [asteroids, setAsteroids] = useState([]);
 
@@ -11,11 +61,8 @@ const AsteroidsScreen = () => {
         const fetchAsteroids = async () => {
             try {
                 const response = await getAsteroids();
-                // Extract the `data` field from the response
                 if (response && response.data) {
-                    setAsteroids(response.data); // Set the extracted data
-                } else {
-                    console.error('Invalid response format:', response);
+                    setAsteroids(response.data);
                 }
             } catch (error) {
                 console.error('Error fetching asteroids:', error);
@@ -24,55 +71,7 @@ const AsteroidsScreen = () => {
         fetchAsteroids();
     }, []);
 
-    const renderItem = ({ item }) => (
-        <Card style={[
-            styles.card,
-            item.is_potentially_hazardous && styles.hazardousCard
-        ]}>
-            <View style={styles.cardHeader}>
-                <Icon 
-                    name={item.is_potentially_hazardous ? 'alert-octagon' : 'star'} 
-                    size={24} 
-                    color={item.is_potentially_hazardous ? '#ff4757' : '#f1c40f'} 
-                />
-                <Text style={styles.name}>{item.name}</Text>
-            </View>
-            
-            <View style={styles.detailRow}>
-                <Icon name="ruler" size={16} color="#7f8c8d" />
-                <Text style={styles.detailText}>
-                    Diameter: <Text style={styles.highlight}>{item.diameter_max_meters.toFixed(2)} m</Text>
-                </Text>
-            </View>
-
-            <View style={styles.detailRow}>
-                <Icon name="calendar" size={16} color="#7f8c8d" />
-                <Text style={styles.detailText}>
-                    Approach: <Text style={styles.highlight}>{item.close_approach_date || 'N/A'}</Text>
-                </Text>
-            </View>
-
-            <View style={styles.detailRow}>
-                <Icon name="map-marker-distance" size={16} color="#7f8c8d" />
-                <Text style={styles.detailText}>
-                    Miss Distance: <Text style={styles.highlight}>
-                        {item.miss_distance_km 
-                            ? `${item.miss_distance_km.toLocaleString()} km` 
-                            : 'N/A'}
-                    </Text>
-                </Text>
-            </View>
-
-            <View style={styles.hazardContainer}>
-                <Text style={[
-                    styles.hazardText,
-                    item.is_potentially_hazardous ? styles.hazardYes : styles.hazardNo
-                ]}>
-                    {item.is_potentially_hazardous ? '⚠️ POTENTIALLY HAZARDOUS' : 'Non-hazardous'}
-                </Text>
-            </View>
-        </Card>
-    );
+    const renderItem = ({ item }) => <MemoizedCard item={item} />;
 
     return (
         <View style={styles.container}>
@@ -82,6 +81,14 @@ const AsteroidsScreen = () => {
                 renderItem={renderItem}
                 keyExtractor={(item) => item.neo_reference_id}
                 contentContainerStyle={styles.listContent}
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                getItemLayout={(data, index) => ({
+                    length: 150,
+                    offset: 150 * index,
+                    index,
+                })}
             />
         </View>
     );
