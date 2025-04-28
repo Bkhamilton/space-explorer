@@ -30,10 +30,16 @@ class CachedAsteroid(models.Model):
     
 class CachedMarsWeather(models.Model):
     sol = models.IntegerField(unique=True)  # Unique identifier for each Martian day
-    temperature = models.FloatField()
-    wind_speed = models.FloatField()
-    pressure = models.FloatField()
-    last_updated = models.DateTimeField(auto_now=True)
+    temperature = models.FloatField()  # Average temperature
+    temperature_min = models.FloatField(null=True, blank=True)  # Minimum temperature
+    temperature_max = models.FloatField(null=True, blank=True)  # Maximum temperature
+    wind_speed = models.FloatField()  # Average wind speed
+    wind_speed_max = models.FloatField(null=True, blank=True)  # Maximum wind speed
+    pressure = models.FloatField()  # Average pressure
+    first_utc = models.DateTimeField(null=True, blank=True)  # First UTC timestamp
+    last_utc = models.DateTimeField(null=True, blank=True)  # Last UTC timestamp
+    most_common_wind_direction = models.CharField(max_length=50, null=True, blank=True)  # Most common wind direction
+    last_updated = models.DateTimeField(auto_now=True)  # Timestamp for the last update
 
     def __str__(self):
         return f"Mars Weather Sol {self.sol}"

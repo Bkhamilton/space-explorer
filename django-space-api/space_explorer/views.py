@@ -72,6 +72,11 @@ def launches(request):
     return JsonResponse({'results': cached_data})
 
 def mars_weather(request):
+    url = f'https://api.nasa.gov/insight_weather/?api_key={settings.NASA_API_KEY}&feedtype=json&ver=1.0'
+    response = requests.get(url)
+    return JsonResponse(response.json())
+
+def mars_weather2(request):
     # Try to get cached data
     cached_data = cache.get('mars_weather_data')
 
@@ -87,24 +92,47 @@ def mars_weather(request):
         else:
             # Fetch fresh data from NASA API
             url = f'https://api.nasa.gov/insight_weather/?api_key={settings.NASA_API_KEY}&feedtype=json&ver=1.0'
-            response = requests.get(url).json()
+            try:
+                response = requests.get(url)
+                response.raise_for_status()
+                data = response.json()
+            except requests.exceptions.RequestException as e:
+                return JsonResponse({'error': f'Failed to fetch data from NASA API: {str(e)}'}, status=500)
+
+            # Validate response
+            sol_keys = data.get('sol_keys', [])
+            if not sol_keys:
+                return JsonResponse({'error': 'No Mars weather data available'}, status=500)
 
             # Save to database
             cached_data = []
-            for sol, data in response.get('sol_keys', {}).items():
+            for sol in sol_keys:
+                sol_data = data.get(sol, {})
                 obj, _ = CachedMarsWeather.objects.update_or_create(
-                    sol=sol,
+                    sol=int(sol),  # Convert sol to an integer
                     defaults={
-                        'temperature': data.get('AT', {}).get('av', None),
-                        'wind_speed': data.get('HWS', {}).get('av', None),
-                        'pressure': data.get('PRE', {}).get('av', None),
+                        'temperature': sol_data.get('AT', {}).get('av', None),
+                        'temperature_min': sol_data.get('AT', {}).get('mn', None),
+                        'temperature_max': sol_data.get('AT', {}).get('mx', None),
+                        'wind_speed': sol_data.get('HWS', {}).get('av', None),
+                        'wind_speed_max': sol_data.get('HWS', {}).get('mx', None),
+                        'pressure': sol_data.get('PRE', {}).get('av', None),
+                        'first_utc': sol_data.get('First_UTC', None),
+                        'last_utc': sol_data.get('Last_UTC', None),
+                        'most_common_wind_direction': sol_data.get('WD', {}).get('most_common', {}).get('compass_point', None),
                     }
                 )
                 cached_data.append({
                     'sol': obj.sol,
                     'temperature': obj.temperature,
+                    'temperature_min': obj.temperature_min,
+                    'temperature_max': obj.temperature_max,
                     'wind_speed': obj.wind_speed,
+                    'wind_speed_max': obj.wind_speed_max,
                     'pressure': obj.pressure,
+                    'first_utc': obj.first_utc,
+                    'last_utc': obj.last_utc,
+                    'most_common_wind_direction': obj.most_common_wind_direction,
                 })
 
             cache.set('mars_weather_data', cached_data, 86400)  # Cache for 24 hours
