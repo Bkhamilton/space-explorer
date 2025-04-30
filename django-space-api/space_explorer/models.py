@@ -6,8 +6,11 @@ class APOD(models.Model):
     title = models.CharField(max_length=200)
     explanation = models.TextField()
     url = models.URLField()
-    date = models.DateField(auto_now_add=True)
-
+    hdurl = models.URLField(blank=True, null=True)
+    media_type = models.CharField(max_length=20, default='image')
+    copyright = models.CharField(max_length=200, blank=True, null=True)
+    date = models.DateField(unique=True)  # Make date unique to prevent duplicates
+    
     def __str__(self):
         return self.title
     

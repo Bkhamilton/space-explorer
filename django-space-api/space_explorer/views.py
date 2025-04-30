@@ -6,18 +6,49 @@ from django.utils import timezone
 from datetime import timedelta
 from .models import APOD, Favorite, CachedAsteroid, CachedMarsWeather, CachedLaunch
 from django.contrib.auth.decorators import login_required
+from django.views.decorators.http import require_http_methods
+from django.core.exceptions import ObjectDoesNotExist
+import json
 
 def apod(request):
-    response = requests.get(f'https://api.nasa.gov/planetary/apod?api_key={settings.NASA_API_KEY}').json()
+    date = request.GET.get('date', None)  # Get date from query params
     
-    # Save to database
-    APOD.objects.create(
-        title=response['title'],
-        explanation=response['explanation'],
-        url=response['url']
-    )
+    # Check cache first
+    cache_key = f'apod_{date}' if date else 'apod_today'
+    cached_response = cache.get(cache_key)
     
-    return JsonResponse(response)
+    if cached_response:
+        return JsonResponse(cached_response)
+    
+    # Build NASA API URL
+    nasa_url = f'https://api.nasa.gov/planetary/apod?api_key={settings.NASA_API_KEY}'
+    if date:
+        nasa_url += f'&date={date}'
+    
+    try:
+        response = requests.get(nasa_url)
+        response.raise_for_status()
+        data = response.json()
+        
+        # Save to database (only if not exists)
+        apod_obj, created = APOD.objects.get_or_create(
+            date=data.get('date', timezone.now().date()),
+            defaults={
+                'title': data['title'],
+                'explanation': data['explanation'],
+                'url': data['url'],
+                'hdurl': data.get('hdurl', ''),
+                'media_type': data.get('media_type', 'image'),
+                'copyright': data.get('copyright', '')
+            }
+        )
+        
+        # Cache for 24 hours
+        cache.set(cache_key, data, 86400)
+        return JsonResponse(data)
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 def launches(request):
     # Try to get cached data
@@ -194,7 +225,96 @@ def fetch_from_nasa_api():
     return asteroids
 
 @login_required
-def favorite_apod(request, apod_id):
-    apod = APOD.objects.get(id=apod_id)
-    Favorite.objects.create(user=request.user, apod=apod)
-    return JsonResponse({"status": "success"})
+@require_http_methods(["POST"])
+def favorite_apod(request):
+    try:
+        data = json.loads(request.body)
+        
+        # Get or create the APOD in your database
+        apod_obj, created = APOD.objects.get_or_create(
+            date=data.get('date'),
+            defaults={
+                'title': data['title'],
+                'explanation': data['explanation'],
+                'url': data['url'],
+                'hdurl': data.get('hdurl', ''),
+                'media_type': data.get('media_type', 'image'),
+                'copyright': data.get('copyright', '')
+            }
+        )
+        
+        # Create the favorite relationship
+        favorite, created = Favorite.objects.get_or_create(
+            user=request.user,
+            apod=apod_obj
+        )
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'APOD favorited successfully',
+            'favorite_id': favorite.id
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=400)
+
+@login_required
+@require_http_methods(["GET"])
+def list_favorites(request):
+    try:
+        favorites = Favorite.objects.filter(user=request.user).select_related('apod')
+        
+        favorites_data = [{
+            'id': fav.id,
+            'apod': {
+                'id': fav.apod.id,
+                'title': fav.apod.title,
+                'explanation': fav.apod.explanation,
+                'url': fav.apod.url,
+                'hdurl': fav.apod.hdurl,
+                'date': fav.apod.date,
+                'copyright': fav.apod.copyright,
+                'media_type': fav.apod.media_type
+            },
+            'created_at': fav.created_at
+        } for fav in favorites]
+        
+        return JsonResponse({
+            'status': 'success',
+            'favorites': favorites_data
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=400)
+
+@login_required
+@require_http_methods(["DELETE"])
+def unfavorite_apod(request, apod_id):
+    try:
+        favorite = Favorite.objects.get(
+            user=request.user,
+            apod__id=apod_id
+        )
+        favorite.delete()
+        
+        return JsonResponse({
+            'status': 'success',
+            'message': 'APOD unfavorited successfully'
+        })
+        
+    except ObjectDoesNotExist:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Favorite not found'
+        }, status=404)
+    except Exception as e:
+        return JsonResponse({
+            'status': 'error',
+            'message': str(e)
+        }, status=400)

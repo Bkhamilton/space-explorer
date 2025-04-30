@@ -86,6 +86,8 @@ CACHES = {
 
 WSGI_APPLICATION = 'space_api.wsgi.application'
 
+LOGIN_URL = '/accounts/login/'  # Redirects unauthenticated users to this URL
+LOGIN_REDIRECT_URL = '/'  # Redirects authenticated users after login
 
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
