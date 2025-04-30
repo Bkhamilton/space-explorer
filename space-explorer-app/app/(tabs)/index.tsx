@@ -1,6 +1,6 @@
 import APODScreen from '@/screens/APODScreen';
 
-export default function HomeScreen() {
+export default function Home() {
     return (
         <APODScreen />
     );

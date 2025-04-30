@@ -1,6 +1,6 @@
 import MarsWeatherScreen from '@/screens/MarsWeatherScreen';
 
-export default function TabTwoScreen() {
+export default function MarsWeather() {
     return (
         <MarsWeatherScreen />
     );

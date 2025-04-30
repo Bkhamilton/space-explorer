@@ -1,6 +1,6 @@
 import AsteroidsScreen from '@/screens/AsteroidsScreen';
 
-export default function TabTwoScreen() {
+export default function Asteroids() {
     return (
         <AsteroidsScreen />
     );
